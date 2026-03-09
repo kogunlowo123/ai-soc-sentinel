@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Powered SOC — Microsoft Sentinel Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep:#020509; --bg-panel:#050d15; --bg-card:#071220;
+  --cyan:#00d4ff; --blue:#0066ff; --azure:#0091ea;
+  --green:#00ff88; --amber:#ffaa00; --red:#ff3b5c; --purple:#9b59ff;
+  --txt:#e8f4ff; --txt2:#7eb8d4; --dim:#3a6b8a;
+  --grid:rgba(0,148,255,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-deep);font-family:'Rajdhani',sans-serif;color:var(--txt);min-height:100vh;overflow-x:hidden;position:relative}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:900px;height:500px;background:radial-gradient(ellipse,rgba(0,102,255,.12) 0%,transparent 70%);pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:1600px;margin:0 auto;padding:30px 40px 60px}
+
+/* HEADER */
+header{text-align:center;margin-bottom:44px}
+.hbadge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);border-radius:30px;padding:6px 18px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--cyan);letter-spacing:3px;text-transform:uppercase;margin-bottom:18px}
+.bdot{width:6px;height:6px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+h1{font-family:'Orbitron',monospace;font-size:clamp(26px,4vw,50px);font-weight:900;background:linear-gradient(135deg,#fff 0%,var(--cyan) 50%,var(--blue) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1}
+.sub{margin-top:10px;font-size:14px;color:var(--txt2);letter-spacing:.5px;max-width:800px;margin-left:auto;margin-right:auto;line-height:1.6}
+.hline{width:200px;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);margin:16px auto 0}
+
+/* STATS */
+.stats{display:flex;gap:14px;margin-bottom:36px;flex-wrap:wrap}
+.chip{flex:1;min-width:140px;background:var(--bg-card);border:1px solid rgba(0,212,255,.12);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden}
+.chip::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.chip.c1::before{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+.chip.c2::before{background:var(--green);box-shadow:0 0 10px var(--green)}
+.chip.c3::before{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+.chip.c4::before{background:var(--red);box-shadow:0 0 10px var(--red)}
+.chip.c5::before{background:var(--purple);box-shadow:0 0 10px var(--purple)}
+.chip-ico{font-size:20px}
+.chip-lbl{font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;font-family:'Share Tech Mono',monospace}
+.chip-val{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;line-height:1.1}
+.chip.c1 .chip-val{color:var(--cyan)}.chip.c2 .chip-val{color:var(--green)}.chip.c3 .chip-val{color:var(--amber)}.chip.c4 .chip-val{color:var(--red)}.chip.c5 .chip-val{color:var(--purple)}
+
+/* ARCH PANEL */
+.arch{position:relative;background:var(--bg-panel);border:1px solid rgba(0,212,255,.1);border-radius:20px;padding:36px;margin-bottom:36px;overflow:hidden}
+.arch::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(0,102,255,.05) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(0,212,255,.05) 0%,transparent 60%);pointer-events:none}
+.slabel{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.slabel::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(0,212,255,.3),transparent)}
+
+/* LAYER */
+.layer{display:flex;align-items:stretch;gap:14px;margin-bottom:14px}
+.ltag{writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;min-width:20px;flex-shrink:0}
+.lcontent{flex:1;display:flex;gap:11px;flex-wrap:wrap}
+
+/* NODE */
+.node{flex:1;min-width:128px;background:var(--bg-card);border-radius:12px;padding:14px;position:relative;cursor:default;transition:transform .2s,box-shadow .2s;border:1px solid transparent}
+.node:hover{transform:translateY(-3px);z-index:10}
+.node.nc{border-color:rgba(0,212,255,.18)}
+.node.nb{border-color:rgba(0,102,255,.22)}
+.node.ng{border-color:rgba(0,255,136,.18)}
+.node.na{border-color:rgba(255,170,0,.18)}
+.node.nr{border-color:rgba(255,59,92,.18)}
+.node.np{border-color:rgba(155,89,255,.18)}
+.node.nc:hover{box-shadow:0 8px 28px rgba(0,212,255,.2)}
+.node.nb:hover{box-shadow:0 8px 28px rgba(0,102,255,.22)}
+.node.ng:hover{box-shadow:0 8px 28px rgba(0,255,136,.2)}
+.node.na:hover{box-shadow:0 8px 28px rgba(255,170,0,.2)}
+.node.nr:hover{box-shadow:0 8px 28px rgba(255,59,92,.2)}
+.node.np:hover{box-shadow:0 8px 28px rgba(155,89,255,.2)}
+
+/* SENTINEL CORE */
+.snode{background:linear-gradient(135deg,#071a35,#0a1f40);border:1px solid rgba(0,145,234,.45);box-shadow:0 0 36px rgba(0,145,234,.12),inset 0 0 28px rgba(0,66,255,.04);padding:20px;flex:2;min-width:250px;border-radius:12px;transition:transform .2s,box-shadow .2s}
+.snode:hover{transform:translateY(-3px);box-shadow:0 0 55px rgba(0,145,234,.25),0 8px 36px rgba(0,66,255,.18)}
+
+.nico{font-size:24px;margin-bottom:8px;display:block}
+.ntitle{font-family:'Orbitron',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;line-height:1.3}
+.nc .ntitle{color:var(--cyan)}.nb .ntitle{color:#5599ff}.ng .ntitle{color:var(--green)}.na .ntitle{color:var(--amber)}.nr .ntitle{color:var(--red)}.np .ntitle{color:var(--purple)}.snode .ntitle{color:#fff;font-size:14px}
+.ndesc{font-size:10px;color:var(--dim);line-height:1.5;font-family:'Share Tech Mono',monospace}
+.ntags{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-size:8px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;padding:2px 6px;border-radius:3px;text-transform:uppercase}
+.tc{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.2)}
+.tb{background:rgba(0,102,255,.1);color:#5599ff;border:1px solid rgba(0,102,255,.2)}
+.tg{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
+.ta{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.2)}
+.tr{background:rgba(255,59,92,.1);color:var(--red);border:1px solid rgba(255,59,92,.2)}
+.tp{background:rgba(155,89,255,.1);color:var(--purple);border:1px solid rgba(155,89,255,.2)}
+
+/* DOC LINK BUTTON */
+.doclink{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-decoration:none;padding:4px 9px;border-radius:4px;border:1px solid;transition:background .2s,box-shadow .2s;cursor:pointer}
+.doclink.dc{color:var(--cyan);border-color:rgba(0,212,255,.3);background:rgba(0,212,255,.05)}
+.doclink.dc:hover{background:rgba(0,212,255,.15);box-shadow:0 0 10px rgba(0,212,255,.2)}
+.doclink.db{color:#5599ff;border-color:rgba(0,102,255,.3);background:rgba(0,102,255,.05)}
+.doclink.db:hover{background:rgba(0,102,255,.15)}
+.doclink.dg{color:var(--green);border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.05)}
+.doclink.dg:hover{background:rgba(0,255,136,.15)}
+.doclink.da{color:var(--amber);border-color:rgba(255,170,0,.3);background:rgba(255,170,0,.05)}
+.doclink.da:hover{background:rgba(255,170,0,.15)}
+.doclink.dr{color:var(--red);border-color:rgba(255,59,92,.3);background:rgba(255,59,92,.05)}
+.doclink.dr:hover{background:rgba(255,59,92,.15)}
+.doclink.dp{color:var(--purple);border-color:rgba(155,89,255,.3);background:rgba(155,89,255,.05)}
+.doclink.dp:hover{background:rgba(155,89,255,.15)}
+.doclink.dw{color:#fff;border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.05)}
+.doclink.dw:hover{background:rgba(255,255,255,.15)}
+
+/* CONNECTOR */
+.lconn{display:flex;justify-content:center;height:28px;align-items:center}
+.conn-wrap{display:flex;flex-direction:column;align-items:center}
+.cdot{width:6px;height:6px;border-radius:50%;animation:pulse 1.5s ease infinite}
+.cline{width:1.5px;height:18px;opacity:.4}
+
+/* RESPONSE LIFECYCLE */
+.resp{display:flex;align-items:stretch;border:1px solid rgba(0,212,255,.08);border-radius:10px;overflow:hidden;margin-top:12px}
+.rstep{flex:1;padding:14px 10px;text-align:center;background:rgba(255,255,255,.02);position:relative;border-right:1px solid rgba(0,212,255,.08)}
+.rstep:last-child{border-right:none}
+.rnum{font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:rgba(0,212,255,.12);line-height:1}
+.rname{font-size:11px;font-weight:700;color:var(--txt);margin-top:4px;line-height:1.3}
+.rdesc{font-size:9px;color:var(--dim);font-family:'Share Tech Mono',monospace;margin-top:4px;line-height:1.4}
+.rdoclink{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:.5px;text-decoration:none;color:rgba(0,212,255,.6);border:1px solid rgba(0,212,255,.15);border-radius:3px;padding:2px 6px;background:rgba(0,212,255,.04);transition:all .2s;text-transform:uppercase}
+.rdoclink:hover{color:var(--cyan);background:rgba(0,212,255,.12)}
+
+/* BOTTOM GRID */
+.bgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-bottom:36px}
+.panel{background:var(--bg-panel);border:1px solid rgba(0,212,255,.08);border-radius:16px;padding:26px;position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.4),transparent)}
+.ptitle{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;color:var(--txt);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.ptitle .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 8px currentColor;flex-shrink:0}
+
+/* ALERTS */
+.afeed{display:flex;flex-direction:column;gap:9px}
+.aitem{display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border-radius:8px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);position:relative;overflow:hidden}
+.aitem::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px}
+.aitem.critical::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.aitem.high::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.aitem.medium::before{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.aitem.low::before{background:var(--green);box-shadow:0 0 8px var(--green)}
+.asev{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;white-space:nowrap;flex-shrink:0;margin-top:2px}
+.aitem.critical .asev{background:rgba(255,59,92,.15);color:var(--red)}
+.aitem.high .asev{background:rgba(255,170,0,.15);color:var(--amber)}
+.aitem.medium .asev{background:rgba(0,212,255,.15);color:var(--cyan)}
+.aitem.low .asev{background:rgba(0,255,136,.15);color:var(--green)}
+.acontent{flex:1}
+.aname{font-size:11px;font-weight:600;color:var(--txt)}
+.ameta{font-size:9px;color:var(--dim);font-family:'Share Tech Mono',monospace;margin-top:2px}
+
+/* METRICS */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mcard{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:14px;text-align:center}
+.mval{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;line-height:1;margin-bottom:5px}
+.mlbl{font-size:9px;color:var(--dim);font-family:'Share Tech Mono',monospace;letter-spacing:1px;text-transform:uppercase}
+.barchart{display:flex;align-items:flex-end;gap:5px;height:65px;margin-top:14px}
+.barw{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.bar{width:100%;border-radius:3px 3px 0 0;position:relative;transition:height 1s ease}
+.bar::after{content:attr(data-val);position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--dim);white-space:nowrap}
+.blbl{font-size:8px;color:var(--dim);font-family:'Share Tech Mono',monospace}
+
+/* PLAYBOOKS */
+.pbgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:36px}
+.pbcard{background:var(--bg-panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:20px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s}
+.pbcard:hover{border-color:rgba(0,212,255,.2);box-shadow:0 4px 20px rgba(0,212,255,.08)}
+.pbn{font-family:'Orbitron',monospace;font-size:44px;font-weight:900;color:rgba(0,212,255,.05);position:absolute;top:8px;right:12px;line-height:1}
+.pbico{font-size:22px;margin-bottom:10px}
+.pbtitle{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;color:var(--txt);margin-bottom:7px}
+.pbsteps{list-style:none}
+.pbsteps li{font-size:10px;color:var(--dim);font-family:'Share Tech Mono',monospace;padding:3px 0;display:flex;align-items:flex-start;gap:5px;line-height:1.4}
+.pbsteps li::before{content:'→';color:var(--cyan);flex-shrink:0}
+
+/* FOOTER */
+footer{display:flex;justify-content:space-between;align-items:center;padding-top:22px;border-top:1px solid rgba(0,212,255,.08);flex-wrap:wrap;gap:14px}
+.fbrand{font-family:'Orbitron',monospace;font-size:11px;color:var(--dim);letter-spacing:2px}
+.flegend{display:flex;gap:18px;flex-wrap:wrap}
+.fleg{display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px}
+.fldot{width:7px;height:7px;border-radius:50%;box-shadow:0 0 5px currentColor}
+.divider{height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.15),transparent);margin:28px 0}
+
+/* DESIGNER CREDIT */
+.cr-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:24px;background:linear-gradient(135deg,rgba(0,102,255,.06),rgba(0,212,255,.04));border:1px solid rgba(0,212,255,.12);border-radius:18px;padding:26px 34px;position:relative;overflow:hidden}
+.cr-inner::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),var(--blue),var(--purple),transparent)}
+.cr-left{display:flex;align-items:center;gap:18px}
+.cr-av{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-family:'Orbitron',monospace;font-size:18px;font-weight:900;color:#fff;box-shadow:0 0 22px rgba(0,212,255,.35);flex-shrink:0;animation:pulse 3s ease infinite}
+.cr-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-bottom:3px}
+.cr-name{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;background:linear-gradient(135deg,#fff 0%,var(--cyan) 60%,var(--blue) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:.5px}
+.cr-role{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--txt2);margin-top:4px;letter-spacing:.5px}
+.cr-links{display:flex;gap:10px;flex-wrap:wrap}
+.cr-link{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border:1px solid rgba(0,212,255,.1);border-radius:10px;padding:10px 14px;text-decoration:none;color:inherit;transition:border-color .25s,background .25s,transform .2s,box-shadow .25s}
+.cr-link:hover{border-color:rgba(0,212,255,.35);background:rgba(0,212,255,.06);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,212,255,.12)}
+.cr-lico{font-size:18px;flex-shrink:0}
+.cr-ltxt{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;color:var(--txt);line-height:1.3}
+.cr-lsub{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--cyan);font-weight:400;letter-spacing:.5px}
+.live{display:inline-flex;align-items:center;gap:5px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);border-radius:20px;padding:3px 10px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--green);letter-spacing:2px}
+.slogo{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.shex{width:36px;height:36px;background:linear-gradient(135deg,var(--azure),var(--blue));clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 0 18px rgba(0,145,234,.5);animation:pulse 3s ease infinite}
+.sname{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;color:#fff;letter-spacing:1px}
+.ssub{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--azure);letter-spacing:3px;text-transform:uppercase}
+
+/* ANIMATIONS */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.blink{animation:blink 1.2s step-end infinite}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="hbadge"><div class="bdot"></div>MICROSOFT SENTINEL · AI-POWERED SOC · ARCHITECTURE v3.2</div>
+  <h1>AI-Powered Security Operations Center</h1>
+  <p class="sub">End-to-end architecture with Microsoft Sentinel · Azure AI · Automated Response.<br>Every component is linked to its official Microsoft Learn documentation for implementation guidance.</p>
+  <div class="hline"></div>
+</header>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="chip c1"><div class="chip-ico">🌐</div><div><div class="chip-lbl">Data Sources</div><div class="chip-val">150+</div></div></div>
+  <div class="chip c2"><div class="chip-ico">📡</div><div><div class="chip-lbl">Events / Day</div><div class="chip-val">2.4B</div></div></div>
+  <div class="chip c3"><div class="chip-ico">⚡</div><div><div class="chip-lbl">MTTD</div><div class="chip-val">&lt;3 min</div></div></div>
+  <div class="chip c4"><div class="chip-ico">🤖</div><div><div class="chip-lbl">Auto-Resolved</div><div class="chip-val">87%</div></div></div>
+  <div class="chip c5"><div class="chip-ico">🛡️</div><div><div class="chip-lbl">AI Accuracy</div><div class="chip-val">99.2%</div></div></div>
+</div>
+
+<!-- ARCHITECTURE -->
+<div class="arch">
+  <div class="slabel">◈ Full-Stack SOC Architecture · Data Flow Layers</div>
+
+  <!-- LAYER 1: DATA SOURCES -->
+  <div class="layer">
+    <div class="ltag" style="color:var(--cyan)">Data Sources</div>
+    <div class="lcontent">
+      <div class="node nc">
+        <span class="nico">🖥️</span>
+        <div class="ntitle">Endpoint Telemetry</div>
+        <div class="ndesc">Windows / Linux / macOS agents via MDE &amp; AMA</div>
+        <div class="ntags"><span class="tag tc">MDE</span><span class="tag tc">Sysmon</span><span class="tag tc">AMA</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/defender-endpoint/mde-planning-guide" target="_blank" rel="noopener">📖 Deploy MDE</a>
+      </div>
+      <div class="node nc">
+        <span class="nico">🌩️</span>
+        <div class="ntitle">Cloud Services</div>
+        <div class="ndesc">Azure, AWS, GCP logs via Diagnostic Settings &amp; connectors</div>
+        <div class="ntags"><span class="tag tc">M365</span><span class="tag tc">Azure AD</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/sentinel/connect-data-sources" target="_blank" rel="noopener">📖 Connect Cloud</a>
+      </div>
+      <div class="node nc">
+        <span class="nico">🔥</span>
+        <div class="ntitle">Network Security</div>
+        <div class="ndesc">Firewall, IDS/IPS, NSG flow logs, NetFlow/IPFIX</div>
+        <div class="ntags"><span class="tag tc">CEF</span><span class="tag tc">Syslog</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/sentinel/data-connectors-reference" target="_blank" rel="noopener">📖 CEF / Syslog Ref</a>
+      </div>
+      <div class="node nc">
+        <span class="nico">🏗️</span>
+        <div class="ntitle">Infrastructure</div>
+        <div class="ndesc">Servers, VMs, K8s, containers, Active Directory</div>
+        <div class="ntags"><span class="tag tc">AD</span><span class="tag tc">K8s</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/sentinel/configure-data-connector" target="_blank" rel="noopener">📖 Configure Connectors</a>
+      </div>
+      <div class="node nc">
+        <span class="nico">📱</span>
+        <div class="ntitle">SaaS &amp; Apps</div>
+        <div class="ndesc">Salesforce, ServiceNow, GitHub, custom REST APIs</div>
+        <div class="ntags"><span class="tag tc">REST</span><span class="tag tc">OAuth</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/sentinel/data-connectors-reference" target="_blank" rel="noopener">📖 SaaS Connectors</a>
+      </div>
+      <div class="node nc">
+        <span class="nico">🌍</span>
+        <div class="ntitle">Threat Intel</div>
+        <div class="ndesc">MISP, TAXII/STIX feeds, MS Threat Intel Platform</div>
+        <div class="ntags"><span class="tag tc">STIX</span><span class="tag tc">TAXII</span></div>
+        <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/sentinel/understand-threat-intelligence" target="_blank" rel="noopener">📖 Threat Intel</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="lconn"><div class="conn-wrap"><div class="cdot" style="background:var(--cyan);box-shadow:0 0 8px var(--cyan)"></div><div class="cline" style="background:linear-gradient(180deg,var(--cyan),transparent)"></div></div></div>
+
+  <!-- LAYER 2: INGESTION -->
+  <div class="layer">
+    <div class="ltag" style="color:#5599ff">Ingestion</div>
+    <div class="lcontent">
+      <div class="node nb">
+        <span class="nico">🔌</span>
+        <div class="ntitle">Data Connectors</div>
+        <div class="ndesc">150+ native connectors, CEF/Syslog forwarders, custom DCR</div>
+        <div class="ntags"><span class="tag tb">DCR</span><span class="tag tb">REST</span></div>
+        <a class="doclink db" href="https://learn.microsoft.com/en-us/azure/sentinel/connect-data-sources" target="_blank" rel="noopener">📖 Data Connectors</a>
+      </div>
+      <div class="node nb">
+        <span class="nico">⚙️</span>
+        <div class="ntitle">Event Hub / Kafka</div>
+        <div class="ndesc">High-volume streaming ingestion with back-pressure control</div>
+        <div class="ntags"><span class="tag tb">Kafka</span><span class="tag tb">AMQP</span></div>
+        <a class="doclink db" href="https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-about" target="_blank" rel="noopener">📖 Azure Event Hubs</a>
+      </div>
+      <div class="node nb">
+        <span class="nico">📐</span>
+        <div class="ntitle">ASIM Parsers</div>
+        <div class="ndesc">Normalization to ASIM schemas — DNS, Auth, Network, Process</div>
+        <div class="ntags"><span class="tag tb">ASIM</span><span class="tag tb">KQL</span></div>
+        <a class="doclink db" href="https://learn.microsoft.com/en-us/azure/sentinel/normalization" target="_blank" rel="noopener">📖 ASIM Overview</a>
+      </div>
+      <div class="node nb">
+        <span class="nico">🗄️</span>
+        <div class="ntitle">Log Analytics Workspace</div>
+        <div class="ndesc">Hot/warm/cold tiers, Basic vs Analytics tables, ADX linkage</div>
+        <div class="ntags"><span class="tag tb">ADX</span><span class="tag tb">Long-term</span></div>
+        <a class="doclink db" href="https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-workspace-overview" target="_blank" rel="noopener">📖 Log Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="lconn"><div class="conn-wrap"><div class="cdot" style="background:var(--azure);box-shadow:0 0 8px var(--azure)"></div><div class="cline" style="background:linear-gradient(180deg,var(--azure),transparent)"></div></div></div>
+
+  <!-- LAYER 3: AI · SIEM · SOAR -->
+  <div class="layer">
+    <div class="ltag" style="color:var(--azure)">AI · SIEM · SOAR</div>
+    <div class="lcontent">
+
+      <div class="snode">
+        <div class="slogo">
+          <div class="shex">🛡</div>
+          <div><div class="sname">Microsoft Sentinel</div><div class="ssub">Cloud-Native SIEM + SOAR + AI Platform</div></div>
+        </div>
+        <div class="ntags" style="margin-bottom:10px">
+          <span class="tag tb">SIEM</span><span class="tag tb">SOAR</span><span class="tag tb">UEBA</span>
+          <span class="tag tb">Threat Intel</span><span class="tag tb">ML Models</span><span class="tag tb">KQL Engine</span>
+        </div>
+        <div class="ndesc" style="color:var(--txt2);font-size:11px;line-height:1.6">
+          Central intelligence hub collecting signals from all layers. Correlates, enriches with threat intelligence, scores incidents via ML, and triggers automated playbooks.
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="doclink dw" href="https://learn.microsoft.com/en-us/azure/sentinel/overview" target="_blank" rel="noopener">📖 Sentinel Overview</a>
+          <a class="doclink dw" href="https://learn.microsoft.com/en-us/azure/sentinel/quickstart-onboard" target="_blank" rel="noopener">🚀 Onboard Sentinel</a>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:190px">
+        <div class="node np" style="flex:1">
+          <span class="nico">🧠</span>
+          <div class="ntitle">Copilot for Security</div>
+          <div class="ndesc">NL queries, summarization, guided investigation, KQL generation</div>
+          <div class="ntags"><span class="tag tp">GPT-4o</span><span class="tag tp">Skills</span></div>
+          <a class="doclink dp" href="https://learn.microsoft.com/en-us/azure/sentinel/sentinel-security-copilot" target="_blank" rel="noopener">📖 Copilot Docs</a>
+        </div>
+        <div class="node np" style="flex:1">
+          <span class="nico">👤</span>
+          <div class="ntitle">UEBA Engine</div>
+          <div class="ndesc">Behavioral baselines, anomaly scoring, peer group analysis</div>
+          <div class="ntags"><span class="tag tp">ML</span><span class="tag tp">Risk Score</span></div>
+          <a class="doclink dp" href="https://learn.microsoft.com/en-us/azure/sentinel/identify-threats-with-entity-behavior-analytics" target="_blank" rel="noopener">📖 UEBA Docs</a>
+        </div>
+        <div class="node np" style="flex:1">
+          <span class="nico">🔍</span>
+          <div class="ntitle">Fusion ML</div>
+          <div class="ndesc">Multi-stage attack correlation across entities and time windows</div>
+          <div class="ntags"><span class="tag tp">Fusion</span><span class="tag tp">Graph</span></div>
+          <a class="doclink dp" href="https://learn.microsoft.com/en-us/azure/sentinel/fusion" target="_blank" rel="noopener">📖 Fusion ML Docs</a>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:190px">
+        <div class="node ng" style="flex:1">
+          <span class="nico">📋</span>
+          <div class="ntitle">Analytics Rules</div>
+          <div class="ndesc">Scheduled, NRT, Fusion, Anomaly, Microsoft Security rules</div>
+          <div class="ntags"><span class="tag tg">KQL</span><span class="tag tg">NRT</span></div>
+          <a class="doclink dg" href="https://learn.microsoft.com/en-us/azure/sentinel/detect-threats-built-in" target="_blank" rel="noopener">📖 Analytics Rules</a>
+        </div>
+        <div class="node ng" style="flex:1">
+          <span class="nico">⚡</span>
+          <div class="ntitle">Automation Rules</div>
+          <div class="ndesc">Triage, tagging, assignment, suppression, playbook triggering</div>
+          <div class="ntags"><span class="tag tg">Logic Apps</span></div>
+          <a class="doclink dg" href="https://learn.microsoft.com/en-us/azure/sentinel/create-manage-use-automation-rules" target="_blank" rel="noopener">📖 Automation Rules</a>
+        </div>
+        <div class="node ng" style="flex:1">
+          <span class="nico">🗺️</span>
+          <div class="ntitle">Threat Hunting</div>
+          <div class="ndesc">Hypothesis-driven hunts, bookmarks, livestream, notebooks</div>
+          <div class="ntags"><span class="tag tg">Jupyter</span><span class="tag tg">KQL</span></div>
+          <a class="doclink dg" href="https://learn.microsoft.com/en-us/azure/sentinel/hunting" target="_blank" rel="noopener">📖 Threat Hunting</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="lconn"><div class="conn-wrap"><div class="cdot" style="background:var(--green);box-shadow:0 0 8px var(--green)"></div><div class="cline" style="background:linear-gradient(180deg,var(--green),transparent)"></div></div></div>
+
+  <!-- LAYER 4: RESPONSE -->
+  <div class="layer">
+    <div class="ltag" style="color:var(--green)">Response</div>
+    <div class="lcontent">
+      <div class="node ng">
+        <span class="nico">🔄</span>
+        <div class="ntitle">Logic App Playbooks</div>
+        <div class="ndesc">Automated multi-step response workflows triggered on incidents</div>
+        <div class="ntags"><span class="tag tg">SOAR</span><span class="tag tg">HTTP</span></div>
+        <a class="doclink dg" href="https://learn.microsoft.com/en-us/azure/sentinel/automation/automate-responses-with-playbooks" target="_blank" rel="noopener">📖 Playbooks Docs</a>
+      </div>
+      <div class="node ng">
+        <span class="nico">🚫</span>
+        <div class="ntitle">Identity Protection</div>
+        <div class="ndesc">Entra ID — disable user, force MFA, revoke sessions, reset PW</div>
+        <div class="ntags"><span class="tag tg">Entra ID</span><span class="tag tg">MFA</span></div>
+        <a class="doclink dg" href="https://learn.microsoft.com/en-us/entra/id-protection/overview-identity-protection" target="_blank" rel="noopener">📖 Entra ID Protection</a>
+      </div>
+      <div class="node ng">
+        <span class="nico">🔒</span>
+        <div class="ntitle">Endpoint Isolation</div>
+        <div class="ndesc">MDE live response, network isolate, collect forensic artifacts</div>
+        <div class="ntags"><span class="tag tg">MDE</span><span class="tag tg">EDR</span></div>
+        <a class="doclink dg" href="https://learn.microsoft.com/en-us/defender-endpoint/respond-machine-alerts" target="_blank" rel="noopener">📖 MDE Response Actions</a>
+      </div>
+      <div class="node na">
+        <span class="nico">🎫</span>
+        <div class="ntitle">ITSM Integration</div>
+        <div class="ndesc">ServiceNow, Jira, PagerDuty — auto-ticket creation &amp; sync</div>
+        <div class="ntags"><span class="tag ta">ServiceNow</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/azure/sentinel/itsm-overview" target="_blank" rel="noopener">📖 ITSM Connector</a>
+      </div>
+      <div class="node na">
+        <span class="nico">💬</span>
+        <div class="ntitle">Notification Hub</div>
+        <div class="ndesc">Teams, email, Slack alerts with rich incident context</div>
+        <div class="ntags"><span class="tag ta">Teams</span><span class="tag ta">Email</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/azure/sentinel/automation/run-playbooks" target="_blank" rel="noopener">📖 Run Playbooks</a>
+      </div>
+      <div class="node nr">
+        <span class="nico">☁️</span>
+        <div class="ntitle">Cloud Remediation</div>
+        <div class="ndesc">Block IP, revoke token, quarantine VM, update NSG rules</div>
+        <div class="ntags"><span class="tag tr">Azure</span><span class="tag tr">NSG</span></div>
+        <a class="doclink dr" href="https://learn.microsoft.com/en-us/azure/defender-for-cloud/remediate-security-recommendations" target="_blank" rel="noopener">📖 Cloud Remediation</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="lconn"><div class="conn-wrap"><div class="cdot" style="background:var(--amber);box-shadow:0 0 8px var(--amber)"></div><div class="cline" style="background:linear-gradient(180deg,var(--amber),transparent)"></div></div></div>
+
+  <!-- LAYER 5: GOVERNANCE -->
+  <div class="layer">
+    <div class="ltag" style="color:var(--amber)">Governance</div>
+    <div class="lcontent">
+      <div class="node na">
+        <span class="nico">📊</span>
+        <div class="ntitle">Workbooks &amp; Dashboards</div>
+        <div class="ndesc">Executive, SOC ops, compliance, threat landscape views</div>
+        <div class="ntags"><span class="tag ta">PowerBI</span><span class="tag ta">KQL</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/azure/sentinel/monitor-your-data" target="_blank" rel="noopener">📖 Sentinel Workbooks</a>
+      </div>
+      <div class="node na">
+        <span class="nico">✅</span>
+        <div class="ntitle">Compliance Manager</div>
+        <div class="ndesc">ISO 27001, NIST, SOC2, PCI-DSS, HIPAA continuous posture</div>
+        <div class="ntags"><span class="tag ta">NIST</span><span class="tag ta">PCI</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/microsoft-365/compliance/compliance-manager-overview" target="_blank" rel="noopener">📖 Compliance Manager</a>
+      </div>
+      <div class="node na">
+        <span class="nico">🎯</span>
+        <div class="ntitle">MITRE ATT&amp;CK</div>
+        <div class="ndesc">Coverage map, gap analysis, rule-to-technique mapping</div>
+        <div class="ntags"><span class="tag ta">ATT&amp;CK</span><span class="tag ta">D3FEND</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/azure/sentinel/mitre-coverage" target="_blank" rel="noopener">📖 MITRE Coverage</a>
+      </div>
+      <div class="node na">
+        <span class="nico">📁</span>
+        <div class="ntitle">Audit &amp; Reporting</div>
+        <div class="ndesc">SIEM audit logs, retention policy, legal hold, eDiscovery</div>
+        <div class="ntags"><span class="tag ta">Purview</span><span class="tag ta">eDiscovery</span></div>
+        <a class="doclink da" href="https://learn.microsoft.com/en-us/azure/sentinel/audit-sentinel-data" target="_blank" rel="noopener">📖 Audit Sentinel</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- INCIDENT RESPONSE LIFECYCLE -->
+<div class="arch" style="margin-bottom:36px">
+  <div class="slabel">◈ Incident Response Lifecycle · Automated Pipeline</div>
+  <div class="resp">
+    <div class="rstep">
+      <div class="rnum">01</div>
+      <div class="rname">Signal Detection</div>
+      <div class="rdesc">Raw events hit analytics rules &amp; anomaly models</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/detect-threats-built-in" target="_blank" rel="noopener">📖 Analytics Rules</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">02</div>
+      <div class="rname">Alert Generation</div>
+      <div class="rdesc">Enrichment with threat intel, UEBA risk score</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/identify-threats-with-entity-behavior-analytics" target="_blank" rel="noopener">📖 UEBA Enrichment</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">03</div>
+      <div class="rname">Incident Fusion</div>
+      <div class="rdesc">Fusion ML groups related alerts → incident</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/fusion" target="_blank" rel="noopener">📖 Fusion Engine</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">04</div>
+      <div class="rname">AI Triage</div>
+      <div class="rdesc">Copilot scores severity, recommends response</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/sentinel-security-copilot" target="_blank" rel="noopener">📖 Copilot Triage</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">05</div>
+      <div class="rname">Auto-Response</div>
+      <div class="rdesc">Playbook executes containment &amp; remediation</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/automation/automate-responses-with-playbooks" target="_blank" rel="noopener">📖 SOAR Playbooks</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">06</div>
+      <div class="rname">SOC Review</div>
+      <div class="rdesc">Analyst validates, closes, feeds back to ML</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/investigate-incidents" target="_blank" rel="noopener">📖 Investigate Incidents</a>
+    </div>
+    <div class="rstep">
+      <div class="rnum">07</div>
+      <div class="rname">Post-Mortem</div>
+      <div class="rdesc">Root cause, MITRE mapping, rule tuning</div>
+      <a class="rdoclink" href="https://learn.microsoft.com/en-us/azure/sentinel/mitre-coverage" target="_blank" rel="noopener">📖 MITRE Coverage</a>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM GRID -->
+<div class="bgrid">
+  <div class="panel">
+    <div class="ptitle">
+      <div class="dot" style="background:var(--red);color:var(--red)"></div>
+      Live Incident Feed
+      <span style="margin-left:auto"><span class="live"><span class="bdot"></span> LIVE</span></span>
+    </div>
+    <div class="afeed">
+      <div class="aitem critical">
+        <span class="asev">CRITICAL</span>
+        <div class="acontent">
+          <div class="aname">Possible Ransomware Activity — Lateral Movement Detected</div>
+          <div class="ameta">INC-2024-4812 · T1021 · 14 entities · 2 min ago · Playbook: ISOLATE-ENDPOINT</div>
+        </div>
+      </div>
+      <div class="aitem high">
+        <span class="asev">HIGH</span>
+        <div class="acontent">
+          <div class="aname">Impossible Travel — Privileged Account Login from 2 Countries</div>
+          <div class="ameta">INC-2024-4811 · T1078 · UEBA Risk 94 · 7 min ago · Playbook: DISABLE-USER</div>
+        </div>
+      </div>
+      <div class="aitem high">
+        <span class="asev">HIGH</span>
+        <div class="acontent">
+          <div class="aname">Azure Key Vault Mass Secret Exfiltration — Anomalous Access</div>
+          <div class="ameta">INC-2024-4810 · T1552 · 312 reads in 60s · 15 min ago · Investigating</div>
+        </div>
+      </div>
+      <div class="aitem medium">
+        <span class="asev">MEDIUM</span>
+        <div class="acontent">
+          <div class="aname">Suspicious PowerShell Obfuscated Command Execution</div>
+          <div class="ameta">INC-2024-4808 · T1059.001 · WIN-PROD-07 · 23 min ago · Auto-closed</div>
+        </div>
+      </div>
+      <div class="aitem low">
+        <span class="asev">LOW</span>
+        <div class="acontent">
+          <div class="aname">Failed MFA Attempts — Spike above Baseline Threshold</div>
+          <div class="ameta">INC-2024-4805 · T1110 · user@corp.com · 1 hr ago · Watching</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">
+      <div class="dot" style="background:var(--cyan);color:var(--cyan)"></div>
+      SOC Performance Metrics
+    </div>
+    <div class="mgrid">
+      <div class="mcard"><div class="mval" style="color:var(--red)" id="inccount">23</div><div class="mlbl">Open Incidents</div></div>
+      <div class="mcard"><div class="mval" style="color:var(--green)">2.8<span style="font-size:13px">min</span></div><div class="mlbl">Avg MTTD</div></div>
+      <div class="mcard"><div class="mval" style="color:var(--amber)">14<span style="font-size:13px">min</span></div><div class="mlbl">Avg MTTR</div></div>
+      <div class="mcard"><div class="mval" style="color:var(--cyan)">87<span style="font-size:13px">%</span></div><div class="mlbl">Auto-Resolved</div></div>
+    </div>
+    <div class="barchart">
+      <div class="barw"><div class="bar" id="b0" style="height:0;background:linear-gradient(180deg,var(--cyan),rgba(0,212,255,.2))" data-h="45%" data-val="142"></div><div class="blbl">MON</div></div>
+      <div class="barw"><div class="bar" id="b1" style="height:0;background:linear-gradient(180deg,var(--cyan),rgba(0,212,255,.2))" data-h="62%" data-val="196"></div><div class="blbl">TUE</div></div>
+      <div class="barw"><div class="bar" id="b2" style="height:0;background:linear-gradient(180deg,var(--cyan),rgba(0,212,255,.2))" data-h="38%" data-val="121"></div><div class="blbl">WED</div></div>
+      <div class="barw"><div class="bar" id="b3" style="height:0;background:linear-gradient(180deg,var(--red),rgba(255,59,92,.2))" data-h="80%" data-val="254"></div><div class="blbl">THU</div></div>
+      <div class="barw"><div class="bar" id="b4" style="height:0;background:linear-gradient(180deg,var(--cyan),rgba(0,212,255,.2))" data-h="55%" data-val="175"></div><div class="blbl">FRI</div></div>
+      <div class="barw"><div class="bar" id="b5" style="height:0;background:linear-gradient(180deg,var(--green),rgba(0,255,136,.2))" data-h="25%" data-val="78"></div><div class="blbl">SAT</div></div>
+      <div class="barw"><div class="bar" id="b6" style="height:0;background:linear-gradient(180deg,var(--green),rgba(0,255,136,.2))" data-h="18%" data-val="57"></div><div class="blbl">SUN</div></div>
+    </div>
+    <div style="text-align:right;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);margin-top:7px">Incidents / Day — 7-day window</div>
+  </div>
+</div>
+
+<!-- PLAYBOOKS -->
+<div class="slabel" style="margin-bottom:18px">◈ Automated SOAR Playbooks · Key Response Workflows</div>
+<div class="pbgrid">
+  <div class="pbcard">
+    <div class="pbn">01</div><div class="pbico">🔴</div>
+    <div class="pbtitle">Ransomware Response</div>
+    <ul class="pbsteps">
+      <li>Isolate infected endpoints via MDE API</li>
+      <li>Snapshot VM disks for forensics</li>
+      <li>Block C2 IPs at NSG &amp; Firewall</li>
+      <li>Alert IR team via Teams + PagerDuty</li>
+      <li>Initiate backup restore workflow</li>
+    </ul>
+    <a class="doclink dr" href="https://learn.microsoft.com/en-us/azure/sentinel/automation/automate-responses-with-playbooks" style="margin-top:12px" target="_blank" rel="noopener">📖 Playbook Guide</a>
+  </div>
+  <div class="pbcard">
+    <div class="pbn">02</div><div class="pbico">👤</div>
+    <div class="pbtitle">Compromised Identity</div>
+    <ul class="pbsteps">
+      <li>Disable Entra ID account immediately</li>
+      <li>Revoke all active OAuth tokens</li>
+      <li>Force MFA re-registration</li>
+      <li>Audit recent sign-in activity</li>
+      <li>Notify manager + HR via email</li>
+    </ul>
+    <a class="doclink dp" href="https://learn.microsoft.com/en-us/entra/id-protection/overview-identity-protection" style="margin-top:12px" target="_blank" rel="noopener">📖 Entra ID Protection</a>
+  </div>
+  <div class="pbcard">
+    <div class="pbn">03</div><div class="pbico">☁️</div>
+    <div class="pbtitle">Cloud Threat Response</div>
+    <ul class="pbsteps">
+      <li>Identify resource &amp; subscription scope</li>
+      <li>Apply deny policy via Azure Policy</li>
+      <li>Revoke storage SAS tokens</li>
+      <li>Enable Defender for Cloud alert</li>
+      <li>Escalate to cloud security team</li>
+    </ul>
+    <a class="doclink dc" href="https://learn.microsoft.com/en-us/azure/defender-for-cloud/remediate-security-recommendations" style="margin-top:12px" target="_blank" rel="noopener">📖 Cloud Remediation</a>
+  </div>
+  <div class="pbcard">
+    <div class="pbn">04</div><div class="pbico">🌐</div>
+    <div class="pbtitle">Phishing &amp; Malware</div>
+    <ul class="pbsteps">
+      <li>Purge malicious email from all inboxes</li>
+      <li>Block sender domain via EXO rules</li>
+      <li>Scan attachments with Defender ATP</li>
+      <li>Identify all recipients &amp; alert them</li>
+      <li>Submit URLs to Safe Links analysis</li>
+    </ul>
+    <a class="doclink da" href="https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/anti-phishing-protection-about" style="margin-top:12px" target="_blank" rel="noopener">📖 Anti-Phishing</a>
+  </div>
+</div>
+
+<!-- DIVIDER -->
+<div class="divider"></div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="fbrand">MICROSOFT SENTINEL · AI SOC ARCHITECTURE · © 2026</div>
+  <div class="flegend">
+    <div class="fleg"><div class="fldot" style="background:var(--cyan);color:var(--cyan)"></div>Data Ingestion</div>
+    <div class="fleg"><div class="fldot" style="background:var(--blue);color:var(--blue)"></div>Processing</div>
+    <div class="fleg"><div class="fldot" style="background:var(--purple);color:var(--purple)"></div>AI / ML</div>
+    <div class="fleg"><div class="fldot" style="background:var(--green);color:var(--green)"></div>Response</div>
+    <div class="fleg"><div class="fldot" style="background:var(--amber);color:var(--amber)"></div>Governance</div>
+    <div class="fleg"><div class="fldot" style="background:var(--red);color:var(--red)"></div>Critical Alert</div>
+  </div>
+  <div class="fbrand" style="font-size:9px">LIVE <span class="blink">_</span></div>
+</footer>
+
+<!-- DESIGNER CREDIT -->
+<div class="divider" style="margin-top:36px"></div>
+<div style="padding:28px 0 10px">
+  <div class="cr-inner">
+    <div class="cr-left">
+      <div class="cr-av">KO</div>
+      <div>
+        <div class="cr-lbl">Designed by</div>
+        <div class="cr-name">Kehinde Ogunlowo</div>
+        <div class="cr-role">Cloud Security Architect · AI Specialist · SOC Engineer</div>
+      </div>
+    </div>
+    <div class="cr-links">
+      <a class="cr-link" href="https://kogunlowo123.github.io/AI-Agent-Specializations/" target="_blank" rel="noopener">
+        <span class="cr-lico">🤖</span>
+        <span class="cr-ltxt">AI Specializations<br><span class="cr-lsub">kogunlowo123.github.io</span></span>
+      </a>
+      <a class="cr-link" href="https://github.com/kogunlowo123" target="_blank" rel="noopener">
+        <span class="cr-lico">⌥</span>
+        <span class="cr-ltxt">GitHub Profile<br><span class="cr-lsub">github.com/kogunlowo123</span></span>
+      </a>
+      <a class="cr-link" href="https://www.linkedin.com/in/kehinde-ogunlowo/" target="_blank" rel="noopener">
+        <span class="cr-lico">🔗</span>
+        <span class="cr-ltxt">LinkedIn<br><span class="cr-lsub">kehinde-ogunlowo</span></span>
+      </a>
+      <a class="cr-link" href="https://citadelcloudmanagement.com" target="_blank" rel="noopener">
+        <span class="cr-lico">🏰</span>
+        <span class="cr-ltxt">Citadel Cloud<br><span class="cr-lsub">citadelcloudmanagement.com</span></span>
+      </a>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+// Animate bars after load
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    for(var i=0;i<7;i++){
+      (function(idx){
+        var el=document.getElementById('b'+idx);
+        if(el){ setTimeout(function(){ el.style.height=el.getAttribute('data-h'); },idx*100); }
+      })(i);
+    }
+  },800);
+});
+// Live incident counter
+var inc=23;
+setInterval(function(){
+  if(Math.random()>.7){
+    inc+=Math.random()>.5?1:-1;
+    inc=Math.max(0,inc);
+    var el=document.getElementById('inccount');
+    if(el) el.textContent=inc;
+  }
+},3200);
+</script>
+</body>
+</html>
